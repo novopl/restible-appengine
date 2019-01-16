@@ -55,6 +55,7 @@ jobs:
           destination: coverage
 #      - store_artifacts:
 #          path: .build/restible-appengine-docs.zip
+#          destination: restible-appengine-docs.zip
 
   release:
     docker:

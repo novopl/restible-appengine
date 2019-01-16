@@ -18,12 +18,15 @@ from __future__ import absolute_import, unicode_literals
 
 # stdlib imports
 import json
-import itertools
-from urlparse import urljoin
-from typing import List, Optional, Tuple
+from collections import namedtuple
+from typing import Optional, Text, Tuple, Type
 
 # 3rd party imports
-from restible import RestEndpoint, RawResponse, api_action
+from restible import (
+    RawResponse,
+    RestEndpoint,
+    RestResource,
+)
 from six import iteritems
 
 # GAE bundled imports
@@ -31,10 +34,104 @@ import webapp2
 from google.appengine.api import users
 
 
+HandlerClass = Type[webapp2.RequestHandler]
+ResourceClass = Type[RestResource]
+EndpointClass = Type[RestEndpoint]
+ResourceMapping = Tuple[Text, ResourceClass]
+RouteConf = namedtuple('RouteConf', 'anon auth admin')
+
+
+def endpoint(base_cls, res_cls_):
+    """ Dynamically create an endpoint class for use with GAE secure scaffold.
+
+    Args:
+        base_cls (HandlerClass):
+            The webapp2 handler class to be used as base for the endpoint
+        res_cls_ (ResourceClass):
+            The resource class this endpoint is handling.
+
+    Returns:
+        EndpointClass: A new endpoint class generated on the fly that inherits
+            both the restible `RestEndpoint` (through `GaeSecureMixin`) and the
+            given webapp2 handler class.
+    """
+
+    # pylint: disable=missing-docstring
+    class ResourceHandlerClass(with_restible(base_cls)):
+        res_cls = res_cls_
+
+    return ResourceHandlerClass
+
+
+def with_restible(base_handler_cls):
+    """ A helper method to generate an endpoint base class.
+
+    This will create a base handler class that derives from both the given
+    base class and `GaeSecureMixin`
+
+    Example:
+
+        >>> from restible_appengine.secure import with_restible
+        >>> from app.base.handlers import AuthenticatedAjaxHandler
+        >>>
+        >>> class MyHandler(with_restible(AuthenticatedAjaxHandler)):
+        ...     res_cls = MyResource
+
+    """
+
+    # pylint: disable=missing-docstring
+    class HandlerClass(base_handler_cls, GaeSecureMixin):
+        def __init__(self, *args, **kw):
+            base_handler_cls.__init__(self, *args, **kw)
+            GaeSecureMixin.__init__(self)
+
+    return HandlerClass
+
+
 class GaeSecureMixin(RestEndpoint):
     """ Mixin to use as base of endpoint classes. """
     def __init__(self, *args, **kw):
         super(GaeSecureMixin, self).__init__(self.res_cls, *args, **kw)
+
+    def get(self, *args, **kw):
+        """ Forward webapp2 GET handler to custom_dispatch(). """
+        return self.custom_dispatch(*args, **kw)
+
+    def post(self, *args, **kw):
+        """ Forward webapp2 POST handler to custom_dispatch(). """
+        return self.custom_dispatch(*args, **kw)
+
+    def put(self, *args, **kw):
+        """ Forward webapp2 PUT handler to custom_dispatch(). """
+        return self.custom_dispatch(*args, **kw)
+
+    def delete(self, *args, **kw):
+        """ Forward webapp2 DELETE handler to custom_dispatch(). """
+        return self.custom_dispatch(*args, **kw)
+
+    def custom_dispatch(self, *args, **kw):
+        """ A custom request dispatcher.
+
+        We need to go through the dispatch() -> METHOD() -> custom_dispatch()
+        call stack just so we don't loose everything that's implemented in
+        dispatch() by the secure scaffold.
+        """
+        self.request.rest_keys = self.request.route_kwargs
+
+        action_name = self.request.path.rstrip('/').rsplit('/', 1)[-1]
+        generic = not self.resource.get_pk(self.request)
+
+        if self.find_action(action_name, generic):
+            result = self.call_action_handler(
+                self.request.method,
+                self.request,
+                action_name,
+                generic
+            )
+        else:
+            result = self.call_rest_handler(self.request.method, self.request)
+
+        return self.response_from_result(result)
 
     def authorize(self, request):
         # type: (webapp2.Request) -> Optional[users.User]
@@ -51,13 +148,6 @@ class GaeSecureMixin(RestEndpoint):
         """
         del request     # unused in this implementation
         return users.get_current_user()
-
-    def custom_dispatch(self, *args, **kw):
-        """ Override webapp2 dispatcher. """
-        self.request.rest_keys = self.request.route_kwargs
-
-        result = self.call_rest_handler(self.request.method, self.request)
-        return self.response_from_result(result)
 
     @classmethod
     def extract_request_data(cls, request):
@@ -79,141 +169,6 @@ class GaeSecureMixin(RestEndpoint):
             self.response.set_status(result.status)
             self.render_json(result.data)
 
-    def get(self, *args, **kw):
-        """ Forward webapp2 GET handler to custom_dispatch(). """
-        return self.custom_dispatch(*args, **kw)
 
-    def post(self, *args, **kw):
-        """ Forward webapp2 POST handler to custom_dispatch(). """
-        return self.custom_dispatch(*args, **kw)
-
-    def put(self, *args, **kw):
-        """ Forward webapp2 PUT handler to custom_dispatch(). """
-        return self.custom_dispatch(*args, **kw)
-
-    def delete(self, *args, **kw):
-        """ Forward webapp2 DELETE handler to custom_dispatch(). """
-        return self.custom_dispatch(*args, **kw)
-
-
-def build_urls(api_urls):
-    """ Create a list of webapp2 handlers for the given url mapping.
-
-    Args:
-        api_urls (list[tuple[str, RestResource]]):
-            A list of URL mapping in the form ``(url, ResourceClass)``.
-
-    Returns:
-        list[webapp2.Route]: Webapp2 URL config.
-
-    Example:
-
-        >>> routes = build_urls([
-        ...     ('/api/user', UserResource),
-        ...     ('/api/post', BlogPostResource)
-        ... ])
-
-    """
-    return list(itertools.chain.from_iterable((
-        _build_endpoint(base_url, res_cls_) for base_url, res_cls_ in api_urls
-    )))
-
-
-def _build_endpoint(base_url, res_cls_):
-    base_cls_anon = BaseAjaxHandler
-    base_cls_auth = AuthenticatedAjaxHandler
-    base_cls = base_cls_auth
-
-    class ResourceEndpoint(base_cls, GaeSecureMixin):
-        """ Auto generated endpoint class. Custom for each endpoint. """
-        res_cls = res_cls_
-
-        def __init__(self, *args, **kw):
-            base_cls.__init__(self, *args, **kw)
-            GaeSecureMixin.__init__(self)
-
-    return _endpoint_urls(
-        url=base_url,
-        base_cls_anon=base_cls_anon,
-        base_cls_auth=base_cls_auth,
-        endpoint_cls=ResourceEndpoint,
-    )
-
-
-def _endpoint_urls(base_cls_anon, base_cls_auth, endpoint_cls, url, **opts):
-    if not url.endswith('/'):
-        url += '/'
-
-    if not hasattr(endpoint_cls, 'resource'):
-        endpoint_cls.resource = endpoint_cls.res_cls()
-
-    urls = []
-    url_list = url
-    url_item = urljoin(url, r'<{}_pk>/'.format(endpoint_cls.resource.name))
-
-    # Add urls for all actions
-    for action in endpoint_cls.resource.rest_actions():
-        meta = api_action.get_meta(action)
-        base_url = url_list if meta.generic else url_item
-        handler = build_action_handler(
-            base_cls_auth if meta.protected else base_cls_anon,
-            endpoint_cls.resource,
-            action
-        )
-
-        urls += [webapp2.Route(
-            name='{}-{}'.format(endpoint_cls.resource.name, meta.name),
-            template=urljoin(base_url, meta.name),
-            handler=handler,
-            methods=[x.upper() for x in meta.methods],
-            defaults={
-                'name': meta.name
-            }
-        )]
-
-    # Add CRUD urls
-    urls += [
-        webapp2.Route(
-            name='{}-item'.format(endpoint_cls.resource.name),
-            template=url_item[:-1],
-            handler=endpoint_cls,
-            handler_method='custom_dispatch',
-            methods=['GET', 'PUT', 'DELETE'],
-
-        ),
-        webapp2.Route(
-            name='{}-list'.format(endpoint_cls.resource.name),
-            template=url_list[:-1],
-            handler=endpoint_cls,
-            methods=['GET', 'POST'],
-        ),
-    ]
-
-    return urls
-
-
-def build_action_handler(base_cls, resource_, action_):
-    """ Build a webapp handler for the given action. """
-    class SecureActionHandler(base_cls, GaeSecureMixin):
-        """ Auto generated webapp2 handler for resource actions. """
-
-        action = action_
-        resource = resource_
-
-        def custom_dispatch(self):
-            """ Override webapp2 dispatcher. """
-            self.request.rest_keys = self.request.route_kwargs
-
-            action_meta = api_action.get_meta(self.action)
-            result = self.call_action_handler(
-                self.request.method,
-                self.request,
-                action_meta.name,
-                action_meta.generic
-            )
-            return self.response_from_result(result)
-
-    return SecureActionHandler
-
-# Used only by type hint comments. Will be dropped if GAE ever moves to python 3
-del List, Optional, Tuple
+# Used only by type hint comments.
+del Optional
