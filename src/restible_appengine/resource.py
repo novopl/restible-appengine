@@ -70,7 +70,7 @@ class NdbResource(ModelResource):
     def delete_item(self, item):
         item.delete()
 
-    def dbquery(self, request, filters):
+    def query_items(self, request, filters):
         """ Return a model query with the given filters.
 
         The query can be further customised like any ndb query.
@@ -81,6 +81,6 @@ class NdbResource(ModelResource):
         filters = [getattr(self.model, n) == v for n, v in iteritems(filters)]
         return self.model.query().filter(*filters)
 
-    def get_requested(self, request):
+    def get_item(self, request):
         pk = self.get_pk(request)
-        return self.model.get_by_id(pk)
+        return self.model.get_by_id(int(pk))
