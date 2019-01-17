@@ -18,4 +18,6 @@ from __future__ import absolute_import, unicode_literals
 
 from .decorators import handler
 from .endpoint import GaeSecureMixin
-from .util import RestRouteBuilder, endpoint, with_restible
+from .util import endpoint
+from .util import RestRouteBuilder
+from .util import with_restible
