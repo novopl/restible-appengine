@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-""" Integration with AppEngine Datastore. """
+""" Integration for Google AppEngine secure python scaffold. """
 from __future__ import absolute_import, unicode_literals
 
-from .resource import NdbResource
-
-__version__ = '0.2.2'
+from .decorators import handler
+from .endpoint import GaeSecureMixin
+from .util import RestRouteBuilder, endpoint, with_restible
