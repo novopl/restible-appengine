@@ -20,5 +20,5 @@ from .decorators import handler
 from .endpoint import GaeSecureMixin
 from .util import endpoint
 from .util import RestRouteBuilder
-from .util import route
+from .decorators import handler
 from .util import with_restible
