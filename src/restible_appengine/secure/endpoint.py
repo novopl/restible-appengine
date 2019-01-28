@@ -75,7 +75,7 @@ class GaeSecureMixin(RestEndpoint):
         action_name = self.request.path.rstrip('/').rsplit('/', 1)[-1]
         generic = not self.resource.get_pk(self.request)
 
-        if self.find_action(action_name, generic):
+        if self.find_action(action_name, generic, self.request.method):
             result = self.call_action_handler(
                 self.request.method,
                 self.request,
