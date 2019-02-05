@@ -50,7 +50,7 @@ class NdbResource(ModelResource):
         return item
 
     def update_item(self, request, values):
-        item = self.get_requested(request)
+        item = self.get_item(request)
 
         if item is None:
             return None
