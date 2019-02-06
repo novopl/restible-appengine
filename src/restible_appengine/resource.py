@@ -27,6 +27,7 @@ from six import iteritems
 
 # local imports
 from restible.model import ModelResource
+from restible import util
 
 
 L = getLogger(__name__)
@@ -55,14 +56,8 @@ class NdbResource(ModelResource):
         if item is None:
             return None
 
-        for name, value in iteritems(values):
-            if name not in ('id',):
-                try:
-                    setattr(item, name, value)
-                except AttributeError:
-                    L.exception("Failed to set attribute '{}'".format(name))
-                    raise
-
+        values.pop('id', None)
+        util.update_from_values(item, values)
         item.put()
 
         return item
