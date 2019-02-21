@@ -76,10 +76,7 @@ def handler(base_cls, methods=None):
     methods = methods or ['get']
 
     def decorator(fn):                  # pylint: disable=missing-docstring
-        class RouteHandler(base_cls):   # pylint: disable=missing-docstring
-            pass
-
-        wrapper = type(fn.__name__, (RouteHandler,), {})
+        wrapper = type(fn.__name__, (base_cls,), {})
         wrapper.wrapped_view = fn
 
         # Only add methods that are allowed.
