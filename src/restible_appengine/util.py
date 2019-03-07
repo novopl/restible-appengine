@@ -3,7 +3,7 @@
 from __future__ import absolute_import, unicode_literals
 
 # stdlib imports
-from typing import Any, Dict, Text, Type
+from typing import Any, Dict, List, Text, Type
 
 # 3rd party imports
 from six import iteritems
@@ -43,10 +43,39 @@ def ndb_query_from_values(model_cls, filters):
         >>> person = ndb_query_from_values(Person, filters).get()
 
     """
-    ndb_filters = [getattr(model_cls, k) == v for k, v in iteritems(filters)]
+    ndb_filters = _parse_qs_filter(model_cls, filters)
 
     return model_cls.query().filter(*ndb_filters)
 
 
+def _parse_qs_filter(model_cls, qs_params):
+    # type: (Type[ndb.Model], Dict[Text, Text]) -> List[Any]
+    op_map = {
+        'eq': lambda mdl, name, value: getattr(mdl, name) == value,
+        'ne': lambda mdl, name, value: getattr(mdl, name) != value,
+        'lt': lambda mdl, name, value: getattr(mdl, name) < value,
+        'gt': lambda mdl, name, value: getattr(mdl, name) > value,
+        'lte': lambda mdl, name, value: getattr(mdl, name) <= value,
+        'gte': lambda mdl, name, value: getattr(mdl, name) >= value,
+        'in': lambda mdl, name, value: getattr(mdl, name).IN(value),
+    }
+
+    ndb_filters = []
+    for flt, value in iteritems(qs_params):
+        parts = flt.rsplit('__', 1)
+        if len(parts) == 2:
+            name, op = parts
+        else:
+            op = 'eq'
+            name = parts[0]
+
+        op_fn = op_map.get(op)
+        if not op_fn:
+            raise ValueError("Invalid OP: {} in '{}'".format(op, flt))
+
+        ndb_filters.append(op_fn(model_cls, name, value))
+    return ndb_filters
+
+
 # Used only in type hint comments.
-del Any, Dict, Text, Type, ndb
+del Any, Dict, List, Text, Type, ndb
