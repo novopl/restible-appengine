@@ -28,7 +28,7 @@ from restible import (
     RestEndpoint,
     RestResource,
 )
-from six import iteritems
+from six import iteritems   # pylint: disable=wrong-import-order
 
 # GAE bundled imports
 import webapp2
@@ -106,7 +106,7 @@ class GaeSecureMixin(RestEndpoint):
     @classmethod
     def extract_request_data(cls, request):
         """ Extract request payload as JSON. """
-        if request.body:
+        if request.body and request.content_type == 'application/json':
             return json.loads(request.body)
 
     def response_from_result(self, result):

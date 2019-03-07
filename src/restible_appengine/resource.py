@@ -23,7 +23,7 @@ from logging import getLogger
 
 # 3rd party imports
 from serafin import Fieldspec
-from six import iteritems
+from six import iteritems   # pylint: disable=wrong-import-order
 
 # local imports
 from restible.model import ModelResource
