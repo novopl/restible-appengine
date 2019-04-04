@@ -73,7 +73,7 @@ class RestRouteBuilder(object):
         self.auth_handler = auth_handler
         self.admin_handler = admin_handler
 
-    def __call__(self, url, res_cls, login=True):
+    def __call__(self, url, res_cls, login=True, name=None):
         # type: (Text, ResourceClass, Union[bool, Text]) -> webapp2.Route
         """ Create a route definition for the given URL.
 
@@ -97,7 +97,7 @@ class RestRouteBuilder(object):
         else:
             base_cls = self.anon_handler
 
-        return webapp2.Route(url, handler=endpoint(base_cls, res_cls))
+        return webapp2.Route(url, handler=endpoint(base_cls, res_cls), name=name)
 
 
 def endpoint(base_cls, res_cls_):
