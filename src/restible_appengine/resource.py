@@ -44,7 +44,7 @@ class NdbResource(ModelResource):
     spec = Fieldspec('*')
     schema = {}
 
-    def create_item(self, values):
+    def create_item(self, request, values):
         item = self.model(**values)
         item.put()
 
@@ -62,7 +62,7 @@ class NdbResource(ModelResource):
 
         return item
 
-    def delete_item(self, item):
+    def delete_item(self, request, item):
         item.delete()
 
     def query_items(self, request, filters):
