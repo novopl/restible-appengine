@@ -20,14 +20,17 @@ from __future__ import absolute_import, unicode_literals
 
 # stdlib imports
 from logging import getLogger
+from typing import Optional
 
 # 3rd party imports
+import restible.util
+import webapp2   # pylint: disable=wrong-import-order
+from google.appengine.ext import ndb   # pylint: disable=wrong-import-order
+from restible.model import ModelResource
 from serafin import Fieldspec
-from six import iteritems   # pylint: disable=wrong-import-order
 
 # local imports
-from restible.model import ModelResource
-from restible import util
+from . import util
 
 
 L = getLogger(__name__)
@@ -44,28 +47,30 @@ class NdbResource(ModelResource):
     spec = Fieldspec('*')
     schema = {}
 
-    def create_item(self, request, values):
-        item = self.model(**values)
+    def create_item(self, request, params, payload):
+        item = self.model(**payload)
         item.put()
 
         return item
 
-    def update_item(self, request, values):
-        item = self.get_item(request)
+    def update_item(self, request, params, payload):
+        item = self.item_for_request(request)
 
         if item is None:
             return None
 
-        values.pop('id', None)
-        util.update_from_values(item, values)
+        payload.pop('id', None)
+        restible.util.update_from_values(item, payload)
         item.put()
 
         return item
 
-    def delete_item(self, request, item):
-        item.delete()
+    def delete_item(self, request, params, payload):
+        item = self.item_for_request(request)
+        if item and item.key:
+            item.key.delete()
 
-    def query_items(self, request, filters):
+    def query_items(self, request, params, payload):
         """ Return a model query with the given filters.
 
         The query can be further customised like any ndb query.
@@ -73,9 +78,16 @@ class NdbResource(ModelResource):
         :return google.appengine.ext.ndb.Query:
             The query with the given filters already applied.
         """
-        filters = [getattr(self.model, n) == v for n, v in iteritems(filters)]
-        return self.model.query().filter(*filters)
+        return util.ndb_query_from_values(self.model, params).fetch()
 
-    def get_item(self, request):
+    def get_item(self, request, params, payload):
+        return self.item_for_request(request)
+
+    def item_for_request(self, request):
+        # type: (webapp2.Request) -> Optional[ndb.Model]
         pk = self.get_pk(request)
         return self.model.get_by_id(int(pk))
+
+
+# Used only in type hint comments
+del Optional, webapp2, ndb
