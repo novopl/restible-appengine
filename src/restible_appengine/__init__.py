@@ -18,4 +18,4 @@ from __future__ import absolute_import, unicode_literals
 
 from .resource import NdbResource
 
-__version__ = '0.3.5'
+__version__ = '0.4'
