@@ -67,7 +67,9 @@ jobs:
 
       - run:
           name: Setup
-          command: pip install .
+          command: |
+            pip install .
+            peltak --help
 
       - run:
           name: Upload to pypi
