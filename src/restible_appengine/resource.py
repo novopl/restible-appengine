@@ -48,6 +48,8 @@ class NdbResource(ModelResource):
     schema = {}
 
     def create_item(self, request, params, payload):
+        payload.pop('id', None)      # ignore ID  (force create).
+
         item = self.model(**payload)
         item.put()
 
@@ -69,6 +71,8 @@ class NdbResource(ModelResource):
         item = self.item_for_request(request)
         if item and item.key:
             item.key.delete()
+        else:
+            raise restible.NotFound()
 
     def query_items(self, request, params, payload):
         """ Return a model query with the given filters.
