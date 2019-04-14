@@ -39,6 +39,7 @@ ResourceClass = Type[RestResource]
 EndpointClass = Type[RestEndpoint]
 ResourceMapping = Tuple[Text, ResourceClass]
 RouteConf = namedtuple('RouteConf', 'anon auth admin')
+DEFAULT_ENDPOINT_CLS = GaeSecureMixin
 
 
 class RestRouteBuilder(object):
@@ -67,11 +68,13 @@ class RestRouteBuilder(object):
         ... ]
 
     """
-    def __init__(self, anon_handler, auth_handler, admin_handler):
+    def __init__(self, anon_handler, auth_handler, admin_handler,
+                 endpoint_cls=DEFAULT_ENDPOINT_CLS):
         # type: (HandlerClass, HandlerClass, HandlerClass) -> None
         self.anon_handler = anon_handler
         self.auth_handler = auth_handler
         self.admin_handler = admin_handler
+        self.endpoint_cls = endpoint_cls
 
     def __call__(self, url, res_cls, login=True, name=None):
         # type: (Text, ResourceClass, Union[bool, Text]) -> webapp2.Route
@@ -97,10 +100,14 @@ class RestRouteBuilder(object):
         else:
             base_cls = self.anon_handler
 
-        return webapp2.Route(url, handler=endpoint(base_cls, res_cls), name=name)
+        return webapp2.Route(
+            url,
+            handler=endpoint(base_cls, res_cls, self.endpoint_cls),
+            name=name
+        )
 
 
-def endpoint(base_cls, res_cls_):
+def endpoint(base_cls, res_cls_, endpoint_cls=DEFAULT_ENDPOINT_CLS):
     """ Dynamically create an endpoint class for use with GAE secure scaffold.
 
     Args:
@@ -135,13 +142,13 @@ def endpoint(base_cls, res_cls_):
     """
 
     # pylint: disable=missing-docstring
-    class ResourceHandlerClass(with_restible(base_cls)):
+    class ResourceHandlerClass(with_restible(base_cls, endpoint_cls)):
         res_cls = res_cls_
 
     return ResourceHandlerClass
 
 
-def with_restible(base_handler_cls):
+def with_restible(base_handler_cls, endpoint_cls=DEFAULT_ENDPOINT_CLS):
     """ A helper method to generate an endpoint base class.
 
     This will create a base handler class that derives from both the given
@@ -158,7 +165,7 @@ def with_restible(base_handler_cls):
     """
 
     # pylint: disable=missing-docstring
-    class HandlerClass(base_handler_cls, GaeSecureMixin):
+    class HandlerClass(base_handler_cls, endpoint_cls):
         def __init__(self, *args, **kw):
             base_handler_cls.__init__(self, *args, **kw)
             GaeSecureMixin.__init__(self)
